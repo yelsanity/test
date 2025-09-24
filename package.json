@@ -1,0 +1,27 @@
+{
+  "name": "stablecoin-risk-report-cli",
+  "version": "0.1.0",
+  "description": "Generate DeFi stablecoin risk assessment reports in Markdown from structured JSON input.",
+  "private": true,
+  "bin": {
+    "risk-report": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "dev": "ts-node src/index.ts",
+    "start": "ts-node src/index.ts",
+    "generate": "node dist/index.js"
+  },
+  "dependencies": {
+    "@types/node": "^20.11.17",
+    "cheerio": "^1.0.0",
+    "commander": "^11.1.0",
+    "undici": "^6.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
+

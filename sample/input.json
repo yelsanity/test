@@ -1,0 +1,138 @@
+{
+  "assetName": "AUSD",
+  "issuer": {
+    "companyName": "Agora Labs, Inc.",
+    "incorporation": "Further verification required.",
+    "dba": "Agora Finance",
+    "mission": "Further verification required.",
+    "profitStatus": "For-profit (Further verification required)",
+    "legalConstraints": "Further verification required."
+  },
+  "classification": {
+    "primaryType": "Fiat-backed",
+    "backingRatio": "1:1 USD (Further verification required)",
+    "reserveAssets": [
+      { "name": "Cash", "link": "https://example.com" },
+      { "name": "U.S. Treasuries" }
+    ],
+    "pegMechanism": "Pegged to USD via redemption/mint parity",
+    "redemptionModel": "Institutional primary redemption; retail via CEX/DEX",
+    "custodian": [
+      { "name": "Further verification required." }
+    ],
+    "assetManager": "Further verification required.",
+    "governanceStructure": "Proxy-admin multisig (Further verification required)",
+    "regulatoryApproach": "Attestations and compliance controls (Further verification required)",
+    "peerComparisons": ["USDC", "USDT", "DAI"]
+  },
+  "adoption": {
+    "institutionalAccess": "KYC’d institutions can mint/redeem directly (FVR).",
+    "retailAccess": "Retail uses exchanges and DEXs (FVR).",
+    "mintingPlatforms": [
+      {"category": "Institutional Counterpart", "examples": ["Direct issuer portal"], "accessType": "Primary issuance", "kycRequired": "Full KYC/AML"},
+      {"category": "Centralize exchanges", "examples": ["CEX listings"], "accessType": "Secondary", "kycRequired": "Exchange KYC"},
+      {"category": "Retail swaps", "examples": ["Uniswap pool"], "accessType": "Secondary", "kycRequired": "None on-chain; front-end may vary"}
+    ],
+    "fiatOnOffRamps": ["Bank wires (FVR)", "Payment partners (FVR)"],
+    "supportedWallets": {
+      "evm": ["Metamask", "Rabbi"],
+      "solana": ["Phantom"],
+      "sui": ["Sui Wallet"],
+      "multiChain": ["Ledger", "Fireblocks"],
+      "institutional": ["Anchorage", "Coinbase Custody"]
+    },
+    "geographicAccessibility": "Global in principle; restrictions may apply to sanctioned regions (FVR).",
+    "frictionPoints": ["Institutional onboarding time", "Venue fragmentation", "Banking-hour dependent redemptions"]
+  },
+  "ecosystemGovernance": {
+    "ownershipSummary": "Further verification required.",
+    "governanceSummary": "Further verification required.",
+    "managementOpsSummary": "Further verification required.",
+    "managementTable": []
+  },
+  "systemArchitecture": {
+    "backgroundWorkflow": "Fiat deposits into custodian accounts prompt mint signals to the on-chain controller contract; redemptions burn tokens and release fiat from reserves (FVR).",
+    "keyTechnical": {
+      "crossChain": {
+        "bridgingProtocol": "Further verification required.",
+        "nativeChain": "Ethereum (FVR)",
+        "bridgedChains": ["Arbitrum", "Polygon"],
+        "tokenTypes": [
+          {"type": "ERC-20", "description": "Native representation on Ethereum (FVR)"}
+        ]
+      },
+      "lockbox": {
+        "roles": ["Controller", "Treasury"],
+        "lockboxType": "Multisig-controlled treasury (FVR)",
+        "governance": "Multisig (FVR)",
+        "multisigContracts": ["0x0000...FVR"]
+      },
+      "bridgingModels": "Canonical lock-and-mint (FVR)",
+      "flowControl": "Mint/burn gated by roles (FVR)",
+      "operationalRisks": ["Custodian outage", "Bridge exploit", "Admin key compromise"]
+    }
+  },
+  "onChainManagement": {
+    "smartContractStructure": {
+      "contractAddresses": ["0x0000...AUSD"],
+      "proxyAdminOwner": "0x0000...ADMIN (FVR)",
+      "chainNativity": "Ethereum (FVR)",
+      "upgradeMechanism": "UUPS/Transparent Proxy (FVR)",
+      "minter": "0x0000...MINTER (FVR)",
+      "burner": "0x0000...BURNER (FVR)",
+      "chainDeployments": ["Ethereum", "Arbitrum", "Polygon"],
+      "bridgingProtocol": "Further verification required.",
+      "bridgingRisk": "Bridge counterparty and message risk (FVR)."
+    },
+    "smartContractControls": {
+      "managementType": "Multisig-administered (FVR)",
+      "lockboxes": "Treasury multisig (FVR)",
+      "roles": [
+        {"role": "DEFAULT_ADMIN_ROLE", "address": "0x0000...ADMIN", "description": "Upgrade authority (FVR)"},
+        {"role": "MINTER_ROLE", "address": "0x0000...MINTER", "description": "Mint control (FVR)"},
+        {"role": "BURNER_ROLE", "address": "0x0000...BURNER", "description": "Burn control (FVR)"}
+      ]
+    },
+    "dependencies": "Banking partners; bridges; CEX liquidity (FVR).",
+    "operationalSecurity": {
+      "managementRolesUsage": "Admin multisig can pause/upgrade and rotate keys (FVR)",
+      "incidentHistoryRef": "No public incidents found (FVR)"
+    },
+    "oracleMechanism": "Off-chain attestation; ecosystem oracles on integrations (FVR)."
+  },
+  "developmentSecurity": {
+    "developerDocs": "https://docs.example.com (FVR)",
+    "githubLink": "https://github.com/example/repo (FVR)",
+    "audits": [
+      {"audited": false, "updated": "FVR", "auditors": ["FVR"], "scope": "Core contracts (FVR)", "date": "FVR"}
+    ],
+    "knownVulnerabilities": [],
+    "bugBounty": "no information available",
+    "downtime": "no information available",
+    "timeToPatch": "no information available"
+  },
+  "regulationCompliance": {
+    "reservesAttestationFileName": "FVR",
+    "proofOfAssetReserves": "FVR",
+    "termsAndUseFileName": "FVR",
+    "custodians": [
+      {"name": "FVR Custodian", "regulatoryStatus": "Regulated (FVR)", "protectedBy": "Insurance (FVR)", "assetsHeld": ["Cash", "T-Bills"]}
+    ],
+    "paymentRails": [
+      {"network": "Fedwire/ACH (FVR)", "settlementTime": "Same-day to T+2 (FVR)", "reliability": "Banking hours dependent (FVR)"}
+    ],
+    "licensing": "FVR",
+    "sanctionsKYC": "FVR",
+    "userRestrictions": "FVR",
+    "illegalUse": "FVR",
+    "customerProtection": "FVR",
+    "governanceStructure": "FVR"
+  },
+  "riskAssessment": {
+    "peerRange": "~0–10% for fiat-backed peers (FVR)"
+  },
+  "sources": {
+    "snapshotReference": "FVR"
+  }
+}
+
