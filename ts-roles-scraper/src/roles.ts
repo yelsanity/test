@@ -33,7 +33,8 @@ async function fetchRoleHoldersFromEtherscanLogs(
   fromBlock: number,
   toBlock: number,
   apiKey: string,
-  chunkSize: number
+  chunkSize: number,
+  delayMs: number
 ): Promise<string[]> {
   const iface = new ethers.Interface(AccessControlEnumerableABI as any);
   const roleTopic = ethers.keccak256(ethers.toUtf8Bytes("RoleGranted(bytes32,address,address)"));
@@ -59,7 +60,10 @@ async function fetchRoleHoldersFromEtherscanLogs(
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
-        const res = await fetch(url, { signal: controller.signal, headers: { "accept": "application/json" } as any });
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { "accept": "application/json", "user-agent": "ts-roles-scraper/1.0" } as any,
+        });
         clearTimeout(timeout);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -98,8 +102,9 @@ async function fetchRoleHoldersFromEtherscanLogs(
     // Query sequentially to reduce pressure on Etherscan and avoid resets
     const grants = await queryLogs(roleTopic, start, end);
     // small pacing between calls
-    await sleep(200);
+    await sleep(Math.max(0, delayMs));
     const revokes = await queryLogs(roleRevokedTopic, start, end);
+    await sleep(Math.max(0, delayMs));
     for (const log of grants) {
       const topic = log.topics[2] as string;
       const account = ethers.getAddress("0x" + topic.slice(topic.length - 40));
@@ -121,7 +126,8 @@ export async function fetchRoleHoldersFromLogs(
   fromBlock: number | bigint = 0,
   toBlock: number | bigint | "latest" = "latest",
   chunkSize: number = 200_000,
-  etherscanApiKey?: string
+  etherscanApiKey?: string,
+  delayMs: number = 400
 ): Promise<string[]> {
   const iface = new ethers.Interface(AccessControlEnumerableABI as any);
   const roleTopic = ethers.keccak256(ethers.toUtf8Bytes("RoleGranted(bytes32,address,address)"));
@@ -135,7 +141,7 @@ export async function fetchRoleHoldersFromLogs(
   // Etherscan getLogs unsupported via EtherscanProvider; use API fallback
   const isEtherscan = (provider as any) instanceof (ethers as any).EtherscanProvider;
   if (isEtherscan) {
-    effectiveChunk = Math.min(effectiveChunk, 10_000);
+    effectiveChunk = Math.min(effectiveChunk, 2_000);
     if (!etherscanApiKey) throw new Error("Etherscan API key required for log scan with Etherscan provider");
     return fetchRoleHoldersFromEtherscanLogs(
       provider,
@@ -144,7 +150,8 @@ export async function fetchRoleHoldersFromLogs(
       startBlock,
       latestBlock,
       etherscanApiKey,
-      effectiveChunk
+      effectiveChunk,
+      delayMs
     );
   }
 
@@ -156,16 +163,16 @@ export async function fetchRoleHoldersFromLogs(
       fromBlock: start,
       toBlock: end,
     } as const;
-    const [grantedLogs, revokedLogs] = await Promise.all([
-      provider.getLogs({
-        ...base,
-        topics: [roleTopic, role, null, null],
-      }),
-      provider.getLogs({
-        ...base,
-        topics: [roleRevokedTopic, role, null, null],
-      }),
-    ]);
+    const grantedLogs = await provider.getLogs({
+      ...base,
+      topics: [roleTopic, role, null, null],
+    });
+    await sleep(Math.max(0, delayMs));
+    const revokedLogs = await provider.getLogs({
+      ...base,
+      topics: [roleRevokedTopic, role, null, null],
+    });
+    await sleep(Math.max(0, delayMs));
     for (const log of grantedLogs) {
       const topic = log.topics[2];
       const account = ethers.getAddress("0x" + topic.slice(topic.length - 40));
