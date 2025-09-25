@@ -6,8 +6,8 @@ import { generateReport } from './generator';
 import { scrapeAgoraCompanyPage } from './scraper/agora';
 import { generateWithPerplexity } from './llm/perplexity';
 import { crawlDomain, extractHintsFromCrawl } from './crawler/simpleCrawler';
-import { fetchFile, extractTextFromFile } from './crawler/fileExtract';
 import { enrichReportWithLLM } from './llm/enrich';
+import { fetchFile, extractTextFromFile } from './crawler/fileExtract';
 
 async function main() {
   const program = new Command();
@@ -27,7 +27,8 @@ async function main() {
     .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25)
     .option('--sites <urls>', 'Comma-separated list of additional sites to crawl', (v) => v, '')
     .option('--download-files', 'Download and parse linked files (pdf, docx, csv, txt)', false)
-    .option('--max-files <n>', 'Max files to download', (v) => parseInt(v, 10), 5);
+    .option('--max-files <n>', 'Max files to download', (v) => parseInt(v, 10), 5)
+    .option('--resources <urls>', 'Comma-separated list of resource URLs (pages or files) to include', (v) => v, '');
 
   program.parse(process.argv);
   const opts = program.opts();
@@ -58,6 +59,13 @@ async function main() {
       if (/^https?:\/\//i.test(raw)) sites.push(raw);
     }
   }
+  // Resource URLs supplied explicitly (pages or files)
+  const resourceUrls: string[] = [];
+  if (opts.resources) {
+    for (const raw of String(opts.resources).split(',').map((s: string) => s.trim()).filter(Boolean)) {
+      if (/^https?:\/\//i.test(raw)) resourceUrls.push(raw);
+    }
+  }
 
   if (sites.length) {
     try {
@@ -84,7 +92,12 @@ async function main() {
       // Attach pages for later LLM enrichment
       (json as any).__crawlPages = pages;
 
-      if (opts.downloadFiles) {
+      // Merge resource URLs into sources
+      if (resourceUrls.length) {
+        json.__sources = (json.__sources || []).concat(resourceUrls);
+      }
+
+      if (opts.downloadFiles || resourceUrls.length) {
         console.log('Downloading linked files...');
         const fileLinks = new Set<string>();
         const exts = ['.pdf', '.docx', '.csv', '.txt'];
@@ -92,6 +105,10 @@ async function main() {
           for (const l of p.links || []) {
             if (exts.some(e => l.toLowerCase().endsWith(e))) fileLinks.add(l);
           }
+        }
+        // Also include explicitly provided resource file links
+        for (const ru of resourceUrls) {
+          if (exts.some(e => ru.toLowerCase().endsWith(e))) fileLinks.add(ru);
         }
         const limited = Array.from(fileLinks).slice(0, opts.maxFiles);
         const fileTexts: any[] = [];

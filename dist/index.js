@@ -8,8 +8,8 @@ const generator_1 = require("./generator");
 const agora_1 = require("./scraper/agora");
 const perplexity_1 = require("./llm/perplexity");
 const simpleCrawler_1 = require("./crawler/simpleCrawler");
-const fileExtract_1 = require("./crawler/fileExtract");
 const enrich_1 = require("./llm/enrich");
+const fileExtract_1 = require("./crawler/fileExtract");
 async function main() {
     const program = new commander_1.Command();
     program
@@ -28,7 +28,8 @@ async function main() {
         .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25)
         .option('--sites <urls>', 'Comma-separated list of additional sites to crawl', (v) => v, '')
         .option('--download-files', 'Download and parse linked files (pdf, docx, csv, txt)', false)
-        .option('--max-files <n>', 'Max files to download', (v) => parseInt(v, 10), 5);
+        .option('--max-files <n>', 'Max files to download', (v) => parseInt(v, 10), 5)
+        .option('--resources <urls>', 'Comma-separated list of resource URLs (pages or files) to include', (v) => v, '');
     program.parse(process.argv);
     const opts = program.opts();
     const raw = await (0, promises_1.readFile)(opts.input, 'utf8');
@@ -58,6 +59,14 @@ async function main() {
                 sites.push(raw);
         }
     }
+    // Resource URLs supplied explicitly (pages or files)
+    const resourceUrls = [];
+    if (opts.resources) {
+        for (const raw of String(opts.resources).split(',').map((s) => s.trim()).filter(Boolean)) {
+            if (/^https?:\/\//i.test(raw))
+                resourceUrls.push(raw);
+        }
+    }
     if (sites.length) {
         try {
             console.log(`Crawling sites (${sites.length}) depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
@@ -84,7 +93,11 @@ async function main() {
             }
             // Attach pages for later LLM enrichment
             json.__crawlPages = pages;
-            if (opts.downloadFiles) {
+            // Merge resource URLs into sources
+            if (resourceUrls.length) {
+                json.__sources = (json.__sources || []).concat(resourceUrls);
+            }
+            if (opts.downloadFiles || resourceUrls.length) {
                 console.log('Downloading linked files...');
                 const fileLinks = new Set();
                 const exts = ['.pdf', '.docx', '.csv', '.txt'];
@@ -93,6 +106,11 @@ async function main() {
                         if (exts.some(e => l.toLowerCase().endsWith(e)))
                             fileLinks.add(l);
                     }
+                }
+                // Also include explicitly provided resource file links
+                for (const ru of resourceUrls) {
+                    if (exts.some(e => ru.toLowerCase().endsWith(e)))
+                        fileLinks.add(ru);
                 }
                 const limited = Array.from(fileLinks).slice(0, opts.maxFiles);
                 const fileTexts = [];
