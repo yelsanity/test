@@ -82,18 +82,90 @@ class EtherscanClient:
         offset: int = 100,
         max_pages: int = 1000,
     ) -> Iterable[Dict[str, Any]]:
-        base_params = {
-            "module": "account",
-            "action": "tokentx",
-            "contractaddress": contract_address,
-            "startblock": start_block,
-            "endblock": end_block,
-            "sort": sort,
-            "apikey": self.api_key,
-        }
-        for page_results in self.paginate(base_params, offset=offset, max_pages=max_pages):
-            for item in page_results:
-                yield item
+        """Yield ERC-20 transfer events for a contract, segmenting to avoid the
+        10k window limit by advancing the start block as we go.
+
+        Deduplicates by tx hash at segment boundaries to prevent double-yields
+        when the last segment ends mid-block.
+        """
+        if sort != "asc":
+            # Segmentation assumes ascending order over blocks
+            raise ValueError("Only asc sort is supported for segmented fetching")
+
+        seen_tx_hashes: set[str] = set()
+        current_start = start_block
+        safety_segments = 0
+
+        while current_start <= end_block:
+            safety_segments += 1
+            if safety_segments > max_pages:
+                break
+
+            page = 1
+            last_block_in_segment: Optional[int] = None
+
+            while True:
+                params = {
+                    "module": "account",
+                    "action": "tokentx",
+                    "contractaddress": contract_address,
+                    "startblock": current_start,
+                    "endblock": end_block,
+                    "sort": sort,
+                    "page": page,
+                    "offset": offset,
+                    "apikey": self.api_key,
+                }
+
+                try:
+                    data = self._get(params)
+                except RuntimeError as exc:  # window too large or other API error
+                    msg = str(exc)
+                    if "Result window is too large" in msg:
+                        # Advance to a new segment starting at the last known block
+                        # If we have no data yet in the segment, bump start by 1 to avoid loops
+                        if last_block_in_segment is None:
+                            current_start += 1
+                        else:
+                            current_start = last_block_in_segment
+                        break
+                    raise
+
+                result = data.get("result", [])
+                if not result:
+                    # No more results at this start; advance beyond the last block seen
+                    if last_block_in_segment is None:
+                        # Nothing returned even on first page -> fully done
+                        return
+                    current_start = last_block_in_segment + 1
+                    break
+
+                for item in result:
+                    tx_hash = str(item.get("hash") or "").lower()
+                    if tx_hash and tx_hash in seen_tx_hashes:
+                        continue
+                    if tx_hash:
+                        seen_tx_hashes.add(tx_hash)
+                    yield item
+
+                try:
+                    last_block_in_segment = int(result[-1]["blockNumber"])
+                except Exception:
+                    last_block_in_segment = last_block_in_segment if last_block_in_segment is not None else current_start
+
+                # If fewer than offset, this segment is done; advance start
+                if len(result) < offset:
+                    current_start = (last_block_in_segment or current_start) + 1
+                    break
+
+                page += 1
+
+                # Avoid exceeding the 10k window (page*offset <= 10000)
+                if page > max(1, 10000 // max(1, offset)):
+                    # Start next segment at the last block to include any remaining
+                    # txs in that block; dedup via tx hash prevents duplicates
+                    current_start = (last_block_in_segment or current_start)
+                    break
 
     def get_token_holders(
         self,
