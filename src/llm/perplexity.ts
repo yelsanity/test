@@ -43,6 +43,34 @@ export async function generateWithPerplexity(
     });
     if (res.statusCode >= 400) {
       const txt = await res.body.text();
+      // Fallback: if invalid_model, try switching based on browsing need
+      if (/invalid_model/i.test(txt)) {
+        const alt = needsBrowsing ? 'sonar-large-online' : 'sonar-large-chat';
+        if (alt !== model) {
+          const retry = await request('https://api.perplexity.ai/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: alt,
+              temperature,
+              max_tokens: maxTokens,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+              ],
+            }),
+            signal: controller.signal,
+          });
+          if (retry.statusCode < 400) {
+            const json2: any = await retry.body.json();
+            const content2: string | undefined = json2?.choices?.[0]?.message?.content;
+            return content2 ?? '';
+          }
+        }
+      }
       throw new Error(`Perplexity HTTP ${res.statusCode}: ${txt}`);
     }
     const json: any = await res.body.json();
