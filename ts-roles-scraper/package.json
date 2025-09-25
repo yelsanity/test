@@ -1,0 +1,20 @@
+{
+  "name": "ts-roles-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "ts-node src/index.ts",
+    "roles": "ts-node src/index.ts roles"
+  },
+  "dependencies": {
+    "ethers": "^6.13.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
