@@ -49,6 +49,29 @@ async function fetchRoleHoldersFromEtherscanLogs(
         ? "https://api-goerli.etherscan.io"
         : "https://api.etherscan.io";
 
+  function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
+  async function fetchJsonWithRetry(url: string, maxAttempts = 6): Promise<any> {
+    let attempt = 0;
+    let delay = 400; // ms
+    while (true) {
+      attempt++;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const res = await fetch(url, { signal: controller.signal, headers: { "accept": "application/json" } as any });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        return data;
+      } catch (err) {
+        if (attempt >= maxAttempts) throw err;
+        await sleep(delay);
+        delay = Math.min(delay * 2, 5000);
+      }
+    }
+  }
+
   async function queryLogs(topic0: string, start: number, end: number) {
     const url = new URL("/api", host);
     url.searchParams.set("module", "logs");
@@ -59,18 +82,24 @@ async function fetchRoleHoldersFromEtherscanLogs(
     url.searchParams.set("topic0", topic0);
     url.searchParams.set("topic1", role);
     url.searchParams.set("apikey", apiKey);
-    const res = await fetch(url.toString());
-    const data = await res.json();
-    if (!data || data.status === "0") return [] as any[];
-    return data.result as any[];
+    const data = await fetchJsonWithRetry(url.toString());
+    if (!data) return [] as any[];
+    if (data.status === "0") {
+      const msg = String(data.message || "").toLowerCase();
+      if (msg.includes("no records") || msg.includes("notok")) return [] as any[];
+      // rate limit or transient error: treat as empty for this chunk to keep progress
+      return [] as any[];
+    }
+    return (data.result as any[]) || [];
   }
 
   for (let start = fromBlock; start <= toBlock; start += chunkSize) {
     const end = Math.min(start + chunkSize - 1, toBlock);
-    const [grants, revokes] = await Promise.all([
-      queryLogs(roleTopic, start, end),
-      queryLogs(roleRevokedTopic, start, end),
-    ]);
+    // Query sequentially to reduce pressure on Etherscan and avoid resets
+    const grants = await queryLogs(roleTopic, start, end);
+    // small pacing between calls
+    await sleep(200);
+    const revokes = await queryLogs(roleRevokedTopic, start, end);
     for (const log of grants) {
       const topic = log.topics[2] as string;
       const account = ethers.getAddress("0x" + topic.slice(topic.length - 40));
