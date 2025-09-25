@@ -196,3 +196,36 @@ class EtherscanClient:
             return result[0]
         return None
 
+    def get_contract_abi(self, contract_address: str) -> Optional[List[Dict[str, Any]]]:
+        params = {
+            "module": "contract",
+            "action": "getabi",
+            "address": contract_address,
+            "apikey": self.api_key,
+        }
+        data = self._get(params)
+        result = data.get("result")
+        if isinstance(result, str):
+            try:
+                import json as _json
+
+                return _json.loads(result)
+            except Exception:
+                return None
+        return None
+
+    def proxy_eth_call(self, to: str, data: str, tag: str = "latest") -> Optional[str]:
+        params = {
+            "module": "proxy",
+            "action": "eth_call",
+            "to": to,
+            "data": data,
+            "tag": tag,
+            "apikey": self.api_key,
+        }
+        data = self._get(params)
+        result = data.get("result")
+        if isinstance(result, str):
+            return result
+        return None
+

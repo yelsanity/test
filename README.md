@@ -47,3 +47,19 @@ Flags:
 - Respect Etherscan rate limits.
 - Free keys may be rate limited; adjust `--rate-limit`.
 
+### Roles introspection (low API usage)
+Identify AccessControl roles with a handful of calls via `eth_call` proxy:
+```bash
+python -m etherscan_scraper roles \
+  --contract 0x00000000efe302beaa2b3e6e1b18d08d69a9012a \
+  --network mainnet \
+  --out-json roles.json
+```
+Optionally check specific addresses for role membership:
+```bash
+python -m etherscan_scraper roles \
+  --contract 0x... \
+  --probe-admin 0xYourAddr1 --probe-admin 0xYourAddr2
+```
+This reads role constants and admin roles; it does not enumerate all members (which requires event logs). It is designed to minimize API calls.
+

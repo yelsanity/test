@@ -3,3 +3,5 @@ tenacity==9.0.0
 click==8.1.7
 python-dateutil==2.9.0.post0
 rich==13.9.2
+eth-abi==5.1.0
+eth-utils==4.1.0

@@ -10,6 +10,7 @@ from rich.progress import Progress
 
 from .api import EtherscanClient
 from .analysis import aggregate_linked_addresses
+from .roles import introspect_roles
 
 
 console = Console()
@@ -114,6 +115,28 @@ def scrape(
     for a in preview:
         console.print(f" - {a}")
 
+
+@cli.command()
+@click.option("--contract", "contract_address", required=True, help="Contract address")
+@click.option("--network", default="mainnet", show_default=True, help="Network: mainnet, sepolia, goerli")
+@click.option("--probe-admin", multiple=True, help="Optional addresses to probe for role membership (repeat for multiple)")
+@click.option("--out-json", type=click.Path(dir_okay=False), default=None)
+def roles(contract_address: str, network: str, probe_admin: tuple[str, ...], out_json: Optional[str]) -> None:
+    """Introspect AccessControl roles with minimal calls via eth_call.
+
+    This fetches common role IDs and each role's admin role. If --probe-admin is
+    supplied, it also checks those addresses for each role (best-effort).
+    """
+    client = EtherscanClient(network=network)
+    console.print(f"[bold]Introspecting roles for[/bold] {contract_address} on {network}...")
+    result = introspect_roles(client, contract_address, list(probe_admin) if probe_admin else None)
+
+    if out_json:
+        with open(out_json, "w") as f:
+            json.dump(result, f, indent=2)
+        console.print(f"Wrote JSON: {out_json}")
+    else:
+        console.print_json(data=result)
 
 if __name__ == "__main__":
     cli()
