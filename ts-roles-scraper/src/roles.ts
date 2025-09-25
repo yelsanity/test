@@ -9,6 +9,15 @@ export function normalizeRoleName(roleId: RoleIdHex): string {
   return DEFAULT_ROLE_NAMES[roleId] ?? roleId;
 }
 
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
+function etherscanHostForChain(chainId: bigint): string {
+  if (chainId === 1n) return "https://api.etherscan.io";
+  if (chainId === 11155111n) return "https://api-sepolia.etherscan.io";
+  if (chainId === 5n) return "https://api-goerli.etherscan.io";
+  return "https://api.etherscan.io";
+}
+
 export async function fetchRoleHoldersEnumerable(
   contract: ethers.Contract,
   role: RoleIdHex
@@ -191,7 +200,11 @@ export async function getRoles(
   provider: ethers.Provider,
   contractAddress: string,
   roleIds: RoleIdHex[],
-  etherscanApiKey?: string
+  etherscanApiKey?: string,
+  fromBlock: number | bigint = 0,
+  toBlock: number | bigint | "latest" = "latest",
+  chunkSize: number = 200_000,
+  delayMs: number = 400
 ): Promise<RolesResult> {
   const contract = new ethers.Contract(contractAddress, AccessControlEnumerableABI, provider);
   const checksum = ethers.getAddress(contractAddress);
@@ -207,7 +220,7 @@ export async function getRoles(
 
     let holders: string[] | null = await fetchRoleHoldersEnumerable(contract, role);
     if (!holders) {
-      holders = await fetchRoleHoldersFromLogs(provider, contract, role, 0, "latest", 200_000, etherscanApiKey);
+      holders = await fetchRoleHoldersFromLogs(provider, contract, role, fromBlock, toBlock, chunkSize, etherscanApiKey, delayMs);
     }
 
     const name = normalizeRoleName(role);

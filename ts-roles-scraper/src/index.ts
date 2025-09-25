@@ -10,7 +10,7 @@ function parseRoleIds(input?: string): RoleIdHex[] {
 async function main() {
   const [cmd] = process.argv.slice(2, 3);
   if (cmd !== "roles") {
-    console.log("Usage: ts-node src/index.ts roles --contract <addr> [--rpc <url> | --etherscan-key <key>] [--roles <comma-separated-role-ids>] [--json]");
+    console.log("Usage: ts-node src/index.ts roles --contract <addr> [--rpc <url> | --etherscan-key <key>] [--roles <comma-separated-role-ids>] [--from-block N] [--to-block N] [--chunk-size N] [--delay-ms N] [--json]");
     process.exit(0);
   }
 
@@ -39,7 +39,12 @@ async function main() {
   }
 
   const roleIds = parseRoleIds(args.get("roles"));
-  const result = await getRoles(provider, contract, roleIds, etherscanKey);
+  const fromBlock = args.has("from-block") ? Number(args.get("from-block")) : 0;
+  const toBlock = args.has("to-block") ? Number(args.get("to-block")) : "latest" as const;
+  const chunkSize = args.has("chunk-size") ? Number(args.get("chunk-size")) : 200_000;
+  const delayMs = args.has("delay-ms") ? Number(args.get("delay-ms")) : 400;
+
+  const result = await getRoles(provider, contract, roleIds, etherscanKey, fromBlock, toBlock, chunkSize, delayMs);
 
   if (args.has("json")) {
     console.log(JSON.stringify(result, null, 2));
