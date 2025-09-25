@@ -6,6 +6,7 @@ import { generateReport } from './generator';
 import { scrapeAgoraCompanyPage } from './scraper/agora';
 import { generateWithPerplexity } from './llm/perplexity';
 import { crawlDomain, extractHintsFromCrawl } from './crawler/simpleCrawler';
+import { enrichReportWithLLM } from './llm/enrich';
 
 async function main() {
   const program = new Command();
@@ -31,12 +32,14 @@ async function main() {
   // Optionally scrape and enrich management table
   if (opts.scrapeAgora) {
     try {
+      console.log('Scraping Agora company page...');
       const people = await scrapeAgoraCompanyPage();
       json.ecosystemGovernance = json.ecosystemGovernance || {};
       const existing = Array.isArray(json.ecosystemGovernance.managementTable)
         ? json.ecosystemGovernance.managementTable
         : [];
       json.ecosystemGovernance.managementTable = [...existing, ...people];
+      console.log(`Scraped management entries: ${people.length}`);
     } catch {
       // ignore scraping errors; keep input as-is
     }
@@ -44,7 +47,9 @@ async function main() {
 
   if (opts.crawlAgora) {
     try {
+      console.log(`Crawling https://www.agora.finance depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
       const pages = await crawlDomain('https://www.agora.finance', { maxDepth: opts.crawlDepth, maxPages: opts.crawlMaxPages, sameHostOnly: true });
+      console.log(`Crawled pages: ${pages.length}`);
       const hints = extractHintsFromCrawl(pages);
       json.__sources = pages.map((p: any) => p.url);
       json.regulationCompliance = json.regulationCompliance || {};
@@ -53,6 +58,8 @@ async function main() {
       if (!json.developmentSecurity.developerDocs && hints.potentialDocs?.length) {
         json.developmentSecurity.developerDocs = hints.potentialDocs[0];
       }
+      // Attach pages for later LLM enrichment
+      (json as any).__crawlPages = pages;
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('Crawl skipped:', (e as Error)?.message);
@@ -61,24 +68,30 @@ async function main() {
 
   const parsed = FrameworkInputSchema.parse(json);
 
+  // Generate skeleton first
+  const skeleton = generateReport(parsed, opts.asset);
+
+  // If LLM flag is enabled, enrich using crawl+scrape content
+  let md = skeleton;
   if (opts.useLlm) {
-    // Compose a compact prompt with key facts to improve analysis language.
-    const systemPrompt = 'You are an expert DeFi risk analyst. Improve clarity, risk-first framing, and comparative context without adding fabricated details. Keep the framework structure intact and preserve placeholders like "Further verification required."';
-    const userPrompt = `Asset: ${opts.asset || parsed.assetName}\nKey facts (JSON): ${JSON.stringify(parsed, null, 2)}\nTask: Provide refined narrative snippets for sections 1.1.1 (classification narrative only), 3.1.1 (executive summary narrative only), and 5.7 (analyst conclusion only). Return a JSON with keys {"s1_1_1","s3_1_1","s5_7"}.`;
     try {
-      const llm = await generateWithPerplexity(systemPrompt, userPrompt, { model: opts.llmModel, temperature: 0.2, maxTokens: 1200 });
-      // Best-effort parse; ignore on failure
-      try {
-        const parsedLlm = JSON.parse(llm);
-        (parsed as any).__llm = parsedLlm;
-      } catch {}
+      const pages = ((json as any).__crawlPages) || [];
+      if (pages.length) {
+        console.log('Passing scraped content to LLM for enrichment...');
+        md = await enrichReportWithLLM(opts.asset || parsed.assetName, skeleton, pages, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
+      } else {
+        console.log('No crawled pages available; using basic LLM improvement prompt.');
+        const systemPrompt = 'You are an expert DeFi risk analyst. Improve clarity and fill placeholders only when confident; preserve structure and do not fabricate.';
+        const userPrompt = `Markdown:\n${skeleton}`;
+        md = await generateWithPerplexity(systemPrompt, userPrompt, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
+      }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('LLM enhancement skipped:', (e as Error)?.message);
+      console.warn('LLM enrichment failed:', (e as Error)?.message);
+      md = skeleton;
     }
   }
 
-  const md = generateReport(parsed, opts.asset);
+  console.log('Writing report...');
   await writeFile(opts.output, md, 'utf8');
   // eslint-disable-next-line no-console
   console.log(`Report written to ${opts.output}`);
