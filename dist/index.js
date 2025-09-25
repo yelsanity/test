@@ -20,6 +20,8 @@ async function main() {
         .option('--scrape-agora', 'Scrape Agora company page for management data', false)
         .option('--use-llm', 'Use Perplexity LLM to enhance analysis text', false)
         .option('--llm-model <name>', 'Perplexity model name (or "auto")', 'auto')
+        .option('--llm-timeout-ms <n>', 'Perplexity request timeout (ms)', (v) => parseInt(v, 10), 120000)
+        .option('--llm-max-tokens <n>', 'Perplexity max tokens', (v) => parseInt(v, 10), 6000)
         .option('--crawl-agora', 'Crawl agora.finance for references and terms', false)
         .option('--crawl-depth <n>', 'Crawler max depth', (v) => parseInt(v, 10), 2)
         .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25);
@@ -80,13 +82,13 @@ async function main() {
             const pages = (json.__crawlPages) || [];
             if (pages.length) {
                 console.log(`Passing scraped content to LLM for enrichment (model=${opts.llmModel}, candidates via PERPLEXITY_MODELS or defaults)...`);
-                md = await (0, enrich_1.enrichReportWithLLM)(opts.asset || parsed.assetName, skeleton, pages, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
+                md = await (0, enrich_1.enrichReportWithLLM)(opts.asset || parsed.assetName, skeleton, pages, { model: opts.llmModel, temperature: 0.2, maxTokens: opts.llmMaxTokens, timeoutMs: opts.llmTimeoutMs, retries: 2 });
             }
             else {
                 console.log('No crawled pages available; using basic LLM improvement prompt.');
                 const systemPrompt = 'You are an expert DeFi risk analyst. Improve clarity and fill placeholders only when confident; preserve structure and do not fabricate.';
                 const userPrompt = `Markdown:\n${skeleton}`;
-                md = await (0, perplexity_1.generateWithPerplexity)(systemPrompt, userPrompt, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
+                md = await (0, perplexity_1.generateWithPerplexity)(systemPrompt, userPrompt, { model: opts.llmModel, temperature: 0.2, maxTokens: opts.llmMaxTokens, timeoutMs: opts.llmTimeoutMs, retries: 2 });
             }
         }
         catch (e) {

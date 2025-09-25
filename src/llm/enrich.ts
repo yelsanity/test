@@ -2,7 +2,7 @@ import { CrawledPage } from '../crawler/simpleCrawler';
 import { generateWithPerplexity, PerplexityOptions } from './perplexity';
 
 function buildPrompt(asset: string, skeletonMarkdown: string, pages: CrawledPage[]): { system: string; user: string } {
-  const maxChars = 45000;
+  const maxChars = 30000;
   const corpus = pages
     .map(p => {
       const header = `URL: ${p.url}\nTITLE: ${p.title}\nMETA: ${p.metaDescription || ''}`;
@@ -21,7 +21,30 @@ function buildPrompt(asset: string, skeletonMarkdown: string, pages: CrawledPage
 
 export async function enrichReportWithLLM(asset: string, skeletonMarkdown: string, pages: CrawledPage[], options: PerplexityOptions = {}): Promise<string> {
   const { system, user } = buildPrompt(asset, skeletonMarkdown, pages);
-  const markdown = await generateWithPerplexity(system, user, options);
-  return markdown && markdown.trim().length > 0 ? markdown : skeletonMarkdown;
+  try {
+    const markdown = await generateWithPerplexity(system, user, { ...options, retries: options.retries ?? 2, timeoutMs: options.timeoutMs ?? 120000 });
+    if (markdown && markdown.trim().length > 0) return markdown;
+  } catch {
+    // fall through to per-section enrichment
+  }
+  // Fallback: enrich key sections individually to reduce token load
+  const sections = ['### 1.1.1 Stablecoin Classification', '#### 3.1.1 Smart Contract Structure', '### 5.7 Analyst Conclusion'];
+  let result = skeletonMarkdown;
+  for (const marker of sections) {
+    const idx = result.indexOf(marker);
+    if (idx === -1) continue;
+    const nextIdx = result.indexOf('\n### ', idx + 1);
+    const slice = nextIdx === -1 ? result.slice(idx) : result.slice(idx, nextIdx);
+    const { system: sys2, user: usr2 } = buildPrompt(asset, slice, pages);
+    try {
+      const enriched = await generateWithPerplexity(sys2, usr2, { ...options, retries: 1, timeoutMs: (options.timeoutMs ?? 120000) });
+      if (enriched && enriched.trim().length > 0) {
+        result = result.replace(slice, enriched);
+      }
+    } catch {
+      // keep original slice
+    }
+  }
+  return result;
 }
 
