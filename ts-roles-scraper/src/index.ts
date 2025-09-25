@@ -10,7 +10,7 @@ function parseRoleIds(input?: string): RoleIdHex[] {
 async function main() {
   const [cmd] = process.argv.slice(2, 3);
   if (cmd !== "roles") {
-    console.log("Usage: ts-node src/index.ts roles --contract <addr> [--rpc <url>] [--roles <comma-separated-role-ids>] [--json]");
+    console.log("Usage: ts-node src/index.ts roles --contract <addr> [--rpc <url> | --etherscan-key <key>] [--roles <comma-separated-role-ids>] [--json]");
     process.exit(0);
   }
 
@@ -26,8 +26,17 @@ async function main() {
   const contract = args.get("contract");
   if (!contract) throw new Error("--contract is required");
 
-  const rpc = args.get("rpc") || process.env.RPC_URL || "https://eth.llamarpc.com";
-  const provider = new ethers.JsonRpcProvider(rpc);
+  const rpc = args.get("rpc") || process.env.RPC_URL;
+  const etherscanKey = args.get("etherscan-key") || process.env.ETHERSCAN_API_KEY;
+  const network = (args.get("network") || "mainnet") as any;
+  const provider = rpc
+    ? new ethers.JsonRpcProvider(rpc)
+    : (etherscanKey
+        ? new ethers.EtherscanProvider(network, etherscanKey)
+        : null);
+  if (!provider) {
+    throw new Error("Provide --rpc <url> or --etherscan-key <key> (or set ETHERSCAN_API_KEY)");
+  }
 
   const roleIds = parseRoleIds(args.get("roles"));
   const result = await getRoles(provider, contract, roleIds);

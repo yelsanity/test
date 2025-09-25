@@ -10,9 +10,16 @@ npm i
 
 ### Usage
 ```bash
+# Using an RPC URL
 npx ts-node src/index.ts roles \
   --contract 0x00000000efe302beaa2b3e6e1b18d08d69a9012a \
-  --rpc https://eth.llamarpc.com \
+  --rpc https://ethereum.publicnode.com \
+  --json
+
+# Using Etherscan (no RPC needed)
+npx ts-node src/index.ts roles \
+  --contract 0x00000000efe302beaa2b3e6e1b18d08d69a9012a \
+  --etherscan-key YOUR_ETHERSCAN_API_KEY \
   --json
 ```
 

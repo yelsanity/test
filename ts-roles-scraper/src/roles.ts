@@ -31,7 +31,8 @@ export async function fetchRoleHoldersFromLogs(
   contract: ethers.Contract,
   role: RoleIdHex,
   fromBlock: number | bigint = 0,
-  toBlock: number | bigint | "latest" = "latest"
+  toBlock: number | bigint | "latest" = "latest",
+  chunkSize: number = 200_000
 ): Promise<string[]> {
   const iface = new ethers.Interface(AccessControlEnumerableABI as any);
   const roleTopic = ethers.keccak256(ethers.toUtf8Bytes("RoleGranted(bytes32,address,address)"));
@@ -41,11 +42,17 @@ export async function fetchRoleHoldersFromLogs(
   const startBlock = Number(fromBlock);
 
   // Query in chunks to satisfy providers that reject huge ranges
-  const chunkSize = 200_000; // adjust if provider complains
+  let effectiveChunk = chunkSize;
+  // Etherscan getLogs typically requires smaller ranges; cap to 10k
+  try {
+    if ((provider as any) instanceof (ethers as any).EtherscanProvider) {
+      effectiveChunk = Math.min(effectiveChunk, 10_000);
+    }
+  } catch {}
   const granted = new Set<string>();
 
-  for (let start = startBlock; start <= latestBlock; start += chunkSize) {
-    const end = Math.min(start + chunkSize - 1, latestBlock);
+  for (let start = startBlock; start <= latestBlock; start += effectiveChunk) {
+    const end = Math.min(start + effectiveChunk - 1, latestBlock);
     const base = {
       address: contract.target as string,
       fromBlock: start,
