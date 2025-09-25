@@ -31,39 +31,49 @@ export async function fetchRoleHoldersFromLogs(
   contract: ethers.Contract,
   role: RoleIdHex,
   fromBlock: number | bigint = 0,
-  toBlock: number | bigint = "latest"
+  toBlock: number | bigint | "latest" = "latest"
 ): Promise<string[]> {
   const iface = new ethers.Interface(AccessControlEnumerableABI as any);
   const roleTopic = ethers.keccak256(ethers.toUtf8Bytes("RoleGranted(bytes32,address,address)"));
   const roleRevokedTopic = ethers.keccak256(ethers.toUtf8Bytes("RoleRevoked(bytes32,address,address)"));
 
-  const filterBase = {
-    address: contract.target as string,
-    fromBlock,
-    toBlock,
-  } as const;
+  const latestBlock = toBlock === "latest" ? await provider.getBlockNumber() : Number(toBlock);
+  const startBlock = Number(fromBlock);
 
-  const [grantedLogs, revokedLogs] = await Promise.all([
-    provider.getLogs({
-      ...filterBase,
-      topics: [roleTopic, role, null, null],
-    }),
-    provider.getLogs({
-      ...filterBase,
-      topics: [roleRevokedTopic, role, null, null],
-    }),
-  ]);
-
+  // Query in chunks to satisfy providers that reject huge ranges
+  const chunkSize = 200_000; // adjust if provider complains
   const granted = new Set<string>();
-  for (const log of grantedLogs) {
-    // topic[2] is indexed account
-    const account = ethers.getAddress(ethers.getAddress("0x" + log.topics[2].slice(26)));
-    granted.add(account);
-  }
 
-  for (const log of revokedLogs) {
-    const account = ethers.getAddress(ethers.getAddress("0x" + log.topics[2].slice(26)));
-    granted.delete(account);
+  for (let start = startBlock; start <= latestBlock; start += chunkSize) {
+    const end = Math.min(start + chunkSize - 1, latestBlock);
+    const base = {
+      address: contract.target as string,
+      fromBlock: start,
+      toBlock: end,
+    } as const;
+
+    const [grantedLogs, revokedLogs] = await Promise.all([
+      provider.getLogs({
+        ...base,
+        topics: [roleTopic, role, null, null],
+      }),
+      provider.getLogs({
+        ...base,
+        topics: [roleRevokedTopic, role, null, null],
+      }),
+    ]);
+
+    for (const log of grantedLogs) {
+      // topic[2] is indexed account (bytes32)
+      const topic = log.topics[2];
+      const account = ethers.getAddress("0x" + topic.slice(topic.length - 40));
+      granted.add(account);
+    }
+    for (const log of revokedLogs) {
+      const topic = log.topics[2];
+      const account = ethers.getAddress("0x" + topic.slice(topic.length - 40));
+      granted.delete(account);
+    }
   }
 
   return Array.from(granted).sort();
