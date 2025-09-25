@@ -79,7 +79,7 @@ async function main() {
         try {
             const pages = (json.__crawlPages) || [];
             if (pages.length) {
-                console.log(`Passing scraped content to LLM for enrichment (model=${opts.llmModel})...`);
+                console.log(`Passing scraped content to LLM for enrichment (model=${opts.llmModel}, candidates via PERPLEXITY_MODELS or defaults)...`);
                 md = await (0, enrich_1.enrichReportWithLLM)(opts.asset || parsed.assetName, skeleton, pages, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
             }
             else {

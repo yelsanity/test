@@ -81,7 +81,7 @@ async function main() {
     try {
       const pages = ((json as any).__crawlPages) || [];
       if (pages.length) {
-        console.log(`Passing scraped content to LLM for enrichment (model=${opts.llmModel})...`);
+        console.log(`Passing scraped content to LLM for enrichment (model=${opts.llmModel}, candidates via PERPLEXITY_MODELS or defaults)...`);
         md = await enrichReportWithLLM(opts.asset || parsed.assetName, skeleton, pages, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
       } else {
         console.log('No crawled pages available; using basic LLM improvement prompt.');
