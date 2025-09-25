@@ -39,7 +39,7 @@ async function main() {
   }
 
   const roleIds = parseRoleIds(args.get("roles"));
-  const result = await getRoles(provider, contract, roleIds);
+  const result = await getRoles(provider, contract, roleIds, etherscanKey);
 
   if (args.has("json")) {
     console.log(JSON.stringify(result, null, 2));
