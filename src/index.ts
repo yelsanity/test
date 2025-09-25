@@ -50,6 +50,10 @@ async function main() {
       console.log(`Crawling https://www.agora.finance depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
       const pages = await crawlDomain('https://www.agora.finance', { maxDepth: opts.crawlDepth, maxPages: opts.crawlMaxPages, sameHostOnly: true });
       console.log(`Crawled pages: ${pages.length}`);
+      for (const p of pages) {
+        const words = (p.markdown || p.text || '').split(/\s+/).filter(Boolean).length;
+        console.log(` - ${p.url} (${words} words)`);
+      }
       const hints = extractHintsFromCrawl(pages);
       json.__sources = pages.map((p: any) => p.url);
       json.regulationCompliance = json.regulationCompliance || {};

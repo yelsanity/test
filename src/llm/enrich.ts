@@ -2,9 +2,13 @@ import { CrawledPage } from '../crawler/simpleCrawler';
 import { generateWithPerplexity, PerplexityOptions } from './perplexity';
 
 function buildPrompt(asset: string, skeletonMarkdown: string, pages: CrawledPage[]): { system: string; user: string } {
-  const maxChars = 30000;
+  const maxChars = 45000;
   const corpus = pages
-    .map(p => `URL: ${p.url}\nTITLE: ${p.title}\nTEXT: ${p.text}`)
+    .map(p => {
+      const header = `URL: ${p.url}\nTITLE: ${p.title}\nMETA: ${p.metaDescription || ''}`;
+      const body = p.markdown || p.text;
+      return `${header}\n\n${body}`;
+    })
     .join('\n\n---\n\n')
     .slice(0, maxChars);
 

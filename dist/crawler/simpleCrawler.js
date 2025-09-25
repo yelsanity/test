@@ -45,9 +45,42 @@ async function crawlDomain(startUrl, opts = {}) {
             const html = await res.body.text();
             const $ = (0, cheerio_1.load)(html);
             const title = ($('title').first().text() || '').trim();
-            // Remove non-content nodes
+            const metaDescription = ($('meta[name="description"]').attr('content') || '').trim();
+            // Remove non-content nodes for clean selection
             $('script, style, noscript').remove();
-            const text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 20000);
+            // Extract structured content
+            const headings = [];
+            $('h1, h2, h3, h4').each((_, el) => {
+                const t = $(el).text().replace(/\s+/g, ' ').trim();
+                if (t)
+                    headings.push(t);
+            });
+            const paragraphs = [];
+            $('p').each((_, el) => {
+                const t = $(el).text().replace(/\s+/g, ' ').trim();
+                if (t)
+                    paragraphs.push(t);
+            });
+            const listItems = [];
+            $('li').each((_, el) => {
+                const t = $(el).text().replace(/\s+/g, ' ').trim();
+                if (t)
+                    listItems.push(t);
+            });
+            const structuredMarkdownParts = [];
+            if (title)
+                structuredMarkdownParts.push(`# ${title}`);
+            if (metaDescription)
+                structuredMarkdownParts.push(`> ${metaDescription}`);
+            if (headings.length)
+                structuredMarkdownParts.push(headings.map(h => `## ${h}`).join('\n'));
+            if (paragraphs.length)
+                structuredMarkdownParts.push(paragraphs.join('\n\n'));
+            if (listItems.length)
+                structuredMarkdownParts.push(listItems.map(li => `- ${li}`).join('\n'));
+            const markdown = structuredMarkdownParts.join('\n\n');
+            // legacy page text (still useful as a quick corpus)
+            const text = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 50000);
             const base = new URL(url);
             const outLinks = [];
             $('a[href]').each((_, el) => {
@@ -63,7 +96,7 @@ async function crawlDomain(startUrl, opts = {}) {
                     queue.push({ url: u.toString(), depth: depth + 1 });
                 }
             });
-            pages.push({ url, title, text, links: outLinks });
+            pages.push({ url, title, text, metaDescription, headings, paragraphs, listItems, markdown, links: outLinks });
         }
         catch {
             // ignore fetch errors
