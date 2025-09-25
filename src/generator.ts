@@ -459,6 +459,11 @@ ${s5_7_override ?? `${asset} demonstrates {Strengths} but carries {Weaknesses}. 
 
   const disclaimer = `\n\nNote on Sources: Primary sources (whitepapers, official docs, audits, verified contracts) were prioritized. Where gaps exist, reputable secondary sources may be used; all unverifiable data are flagged as "${NA}".`;
 
-  return [section1, section1_2, section2, section3, section4, section5, disclaimer].join('\n\n');
+  const sources = (d as any).__sources as string[] | undefined;
+  const sourcesBlock = sources && sources.length
+    ? `\n\n### Sources\n${sources.map((s) => `- ${s}`).join('\n')}`
+    : '';
+
+  return [section1, section1_2, section2, section3, section4, section5, disclaimer + sourcesBlock].join('\n\n');
 }
 

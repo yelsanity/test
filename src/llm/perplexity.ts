@@ -43,7 +43,7 @@ export async function generateWithPerplexity(
       const txt = await res.body.text();
       throw new Error(`Perplexity HTTP ${res.statusCode}: ${txt}`);
     }
-    const json = await res.body.json();
+    const json: any = await res.body.json();
     const content: string | undefined = json?.choices?.[0]?.message?.content;
     return content ?? '';
   } finally {
