@@ -6,6 +6,7 @@ import { generateReport } from './generator';
 import { scrapeAgoraCompanyPage } from './scraper/agora';
 import { generateWithPerplexity } from './llm/perplexity';
 import { crawlDomain, extractHintsFromCrawl } from './crawler/simpleCrawler';
+import { fetchFile, extractTextFromFile } from './crawler/fileExtract';
 import { enrichReportWithLLM } from './llm/enrich';
 
 async function main() {
@@ -23,7 +24,10 @@ async function main() {
     .option('--llm-max-tokens <n>', 'Perplexity max tokens', (v) => parseInt(v, 10), 6000)
     .option('--crawl-agora', 'Crawl agora.finance for references and terms', false)
     .option('--crawl-depth <n>', 'Crawler max depth', (v) => parseInt(v, 10), 2)
-    .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25);
+    .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25)
+    .option('--sites <urls>', 'Comma-separated list of additional sites to crawl', (v) => v, '')
+    .option('--download-files', 'Download and parse linked files (pdf, docx, csv, txt)', false)
+    .option('--max-files <n>', 'Max files to download', (v) => parseInt(v, 10), 5);
 
   program.parse(process.argv);
   const opts = program.opts();
@@ -47,10 +51,23 @@ async function main() {
     }
   }
 
-  if (opts.crawlAgora) {
+  const sites: string[] = [];
+  if (opts.crawlAgora) sites.push('https://www.agora.finance');
+  if (opts.sites) {
+    for (const raw of String(opts.sites).split(',').map((s: string) => s.trim()).filter(Boolean)) {
+      if (/^https?:\/\//i.test(raw)) sites.push(raw);
+    }
+  }
+
+  if (sites.length) {
     try {
-      console.log(`Crawling https://www.agora.finance depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
-      const pages = await crawlDomain('https://www.agora.finance', { maxDepth: opts.crawlDepth, maxPages: opts.crawlMaxPages, sameHostOnly: true });
+      console.log(`Crawling sites (${sites.length}) depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
+      let pages: any[] = [];
+      for (const site of sites) {
+        console.log(` - Crawling ${site}`);
+        const p = await crawlDomain(site, { maxDepth: opts.crawlDepth, maxPages: opts.crawlMaxPages, sameHostOnly: true });
+        pages = pages.concat(p);
+      }
       console.log(`Crawled pages: ${pages.length}`);
       for (const p of pages) {
         const words = (p.markdown || p.text || '').split(/\s+/).filter(Boolean).length;
@@ -66,6 +83,30 @@ async function main() {
       }
       // Attach pages for later LLM enrichment
       (json as any).__crawlPages = pages;
+
+      if (opts.downloadFiles) {
+        console.log('Downloading linked files...');
+        const fileLinks = new Set<string>();
+        const exts = ['.pdf', '.docx', '.csv', '.txt'];
+        for (const p of pages) {
+          for (const l of p.links || []) {
+            if (exts.some(e => l.toLowerCase().endsWith(e))) fileLinks.add(l);
+          }
+        }
+        const limited = Array.from(fileLinks).slice(0, opts.maxFiles);
+        const fileTexts: any[] = [];
+        for (const url of limited) {
+          try {
+            const { buffer, contentType } = await fetchFile(url);
+            const extracted = await extractTextFromFile(url, buffer, contentType);
+            fileTexts.push(extracted);
+            console.log(`   * ${url} (${extracted.text.split(/\s+/).filter(Boolean).length} words)`);
+          } catch (e) {
+            console.warn('   x Failed:', url, (e as Error)?.message);
+          }
+        }
+        (json as any).__fileTexts = fileTexts;
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('Crawl skipped:', (e as Error)?.message);

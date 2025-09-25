@@ -26,6 +26,8 @@ async function enrichReportWithLLM(asset, skeletonMarkdown, pages, options = {})
     catch {
         // fall through to per-section enrichment
     }
+    // Append downloaded file texts if present on caller
+    // Note: we can't import runtime state here; corpus was included in buildPrompt from pages
     // Fallback: enrich key sections individually to reduce token load
     const sections = ['### 1.1.1 Stablecoin Classification', '#### 3.1.1 Smart Contract Structure', '### 5.7 Analyst Conclusion'];
     let result = skeletonMarkdown;

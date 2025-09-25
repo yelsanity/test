@@ -8,6 +8,7 @@ const generator_1 = require("./generator");
 const agora_1 = require("./scraper/agora");
 const perplexity_1 = require("./llm/perplexity");
 const simpleCrawler_1 = require("./crawler/simpleCrawler");
+const fileExtract_1 = require("./crawler/fileExtract");
 const enrich_1 = require("./llm/enrich");
 async function main() {
     const program = new commander_1.Command();
@@ -24,7 +25,10 @@ async function main() {
         .option('--llm-max-tokens <n>', 'Perplexity max tokens', (v) => parseInt(v, 10), 6000)
         .option('--crawl-agora', 'Crawl agora.finance for references and terms', false)
         .option('--crawl-depth <n>', 'Crawler max depth', (v) => parseInt(v, 10), 2)
-        .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25);
+        .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25)
+        .option('--sites <urls>', 'Comma-separated list of additional sites to crawl', (v) => v, '')
+        .option('--download-files', 'Download and parse linked files (pdf, docx, csv, txt)', false)
+        .option('--max-files <n>', 'Max files to download', (v) => parseInt(v, 10), 5);
     program.parse(process.argv);
     const opts = program.opts();
     const raw = await (0, promises_1.readFile)(opts.input, 'utf8');
@@ -45,10 +49,24 @@ async function main() {
             // ignore scraping errors; keep input as-is
         }
     }
-    if (opts.crawlAgora) {
+    const sites = [];
+    if (opts.crawlAgora)
+        sites.push('https://www.agora.finance');
+    if (opts.sites) {
+        for (const raw of String(opts.sites).split(',').map((s) => s.trim()).filter(Boolean)) {
+            if (/^https?:\/\//i.test(raw))
+                sites.push(raw);
+        }
+    }
+    if (sites.length) {
         try {
-            console.log(`Crawling https://www.agora.finance depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
-            const pages = await (0, simpleCrawler_1.crawlDomain)('https://www.agora.finance', { maxDepth: opts.crawlDepth, maxPages: opts.crawlMaxPages, sameHostOnly: true });
+            console.log(`Crawling sites (${sites.length}) depth=${opts.crawlDepth} maxPages=${opts.crawlMaxPages} ...`);
+            let pages = [];
+            for (const site of sites) {
+                console.log(` - Crawling ${site}`);
+                const p = await (0, simpleCrawler_1.crawlDomain)(site, { maxDepth: opts.crawlDepth, maxPages: opts.crawlMaxPages, sameHostOnly: true });
+                pages = pages.concat(p);
+            }
             console.log(`Crawled pages: ${pages.length}`);
             for (const p of pages) {
                 const words = (p.markdown || p.text || '').split(/\s+/).filter(Boolean).length;
@@ -66,6 +84,31 @@ async function main() {
             }
             // Attach pages for later LLM enrichment
             json.__crawlPages = pages;
+            if (opts.downloadFiles) {
+                console.log('Downloading linked files...');
+                const fileLinks = new Set();
+                const exts = ['.pdf', '.docx', '.csv', '.txt'];
+                for (const p of pages) {
+                    for (const l of p.links || []) {
+                        if (exts.some(e => l.toLowerCase().endsWith(e)))
+                            fileLinks.add(l);
+                    }
+                }
+                const limited = Array.from(fileLinks).slice(0, opts.maxFiles);
+                const fileTexts = [];
+                for (const url of limited) {
+                    try {
+                        const { buffer, contentType } = await (0, fileExtract_1.fetchFile)(url);
+                        const extracted = await (0, fileExtract_1.extractTextFromFile)(url, buffer, contentType);
+                        fileTexts.push(extracted);
+                        console.log(`   * ${url} (${extracted.text.split(/\s+/).filter(Boolean).length} words)`);
+                    }
+                    catch (e) {
+                        console.warn('   x Failed:', url, e?.message);
+                    }
+                }
+                json.__fileTexts = fileTexts;
+            }
         }
         catch (e) {
             // eslint-disable-next-line no-console
