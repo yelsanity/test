@@ -19,7 +19,7 @@ async function main() {
         .option('-a, --asset <name>', 'Asset name override')
         .option('--scrape-agora', 'Scrape Agora company page for management data', false)
         .option('--use-llm', 'Use Perplexity LLM to enhance analysis text', false)
-        .option('--llm-model <name>', 'Perplexity model name', 'llama-3.1-sonar-large-128k-online')
+        .option('--llm-model <name>', 'Perplexity model name (or "auto")', 'auto')
         .option('--crawl-agora', 'Crawl agora.finance for references and terms', false)
         .option('--crawl-depth <n>', 'Crawler max depth', (v) => parseInt(v, 10), 2)
         .option('--crawl-max-pages <n>', 'Crawler max pages', (v) => parseInt(v, 10), 25);
@@ -75,7 +75,7 @@ async function main() {
         try {
             const pages = (json.__crawlPages) || [];
             if (pages.length) {
-                console.log('Passing scraped content to LLM for enrichment...');
+                console.log(`Passing scraped content to LLM for enrichment (model=${opts.llmModel})...`);
                 md = await (0, enrich_1.enrichReportWithLLM)(opts.asset || parsed.assetName, skeleton, pages, { model: opts.llmModel, temperature: 0.2, maxTokens: 6000 });
             }
             else {

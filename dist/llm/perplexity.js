@@ -2,11 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateWithPerplexity = generateWithPerplexity;
 const undici_1 = require("undici");
+const models_1 = require("./models");
 async function generateWithPerplexity(systemPrompt, userPrompt, options = {}) {
     const apiKey = process.env.PERPLEXITY_API_KEY;
     if (!apiKey)
         throw new Error('PERPLEXITY_API_KEY not set');
-    const model = options.model || 'llama-3.1-sonar-large-128k-online';
+    const needsBrowsing = /https?:\/\//i.test(userPrompt);
+    const model = (0, models_1.selectPerplexityModel)(options.model || 'auto', needsBrowsing);
     const temperature = options.temperature ?? 0.2;
     const maxTokens = options.maxTokens ?? 1200;
     const controller = new AbortController();

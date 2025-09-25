@@ -1,4 +1,5 @@
 import { request } from 'undici';
+import { selectPerplexityModel } from './models';
 
 export interface PerplexityOptions {
   model?: string;
@@ -15,7 +16,8 @@ export async function generateWithPerplexity(
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error('PERPLEXITY_API_KEY not set');
 
-  const model = options.model || 'llama-3.1-sonar-large-128k-online';
+  const needsBrowsing = /https?:\/\//i.test(userPrompt);
+  const model = selectPerplexityModel(options.model || 'auto', needsBrowsing);
   const temperature = options.temperature ?? 0.2;
   const maxTokens = options.maxTokens ?? 1200;
 
